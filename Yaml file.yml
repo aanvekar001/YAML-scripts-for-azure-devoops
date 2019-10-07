@@ -1,0 +1,64 @@
+trigger:
+- master
+
+pool:
+  vmImage: '$(ImageName)'
+
+steps:
+- task: UseDotNet@2
+  displayName: Installing DotNetCoreCLI
+  inputs:
+    packageType: 'sdk'
+    version: '2.2.x'
+    installationPath: $(Agent.ToolsDirectory)/dotnet
+
+- task: DotNetCoreCLI@2
+  displayName: Restore
+  inputs:
+    command: restore
+    projects: $(project)
+
+- task: DotNetCoreCLI@2
+  displayName: Build
+  inputs:
+    command: build
+    projects: $(project)
+    arguments: '--configuration $(Build.Configuration)'
+
+- task: DotNetCoreCLI@2
+  displayName: Test
+  inputs:
+    command: test
+    projects: $(project)
+    arguments: '--configuration $(Build.Configuration)'
+    
+- task: DotNetCoreCLI@2
+  displayName: publish
+  inputs:
+    command: publish
+    publishWebProjects: True
+    arguments: '--configuration $(Build.Configuration) --output $(Build.ArtifactStagingDirectory)'
+    zipAfterPublish: True
+
+- task: OctoInstaller@4
+  inputs:
+    version: 'embedded'
+
+- task: OctopusPack@4
+  inputs:
+    PackageId: 'abhi.anve'
+    PackageFormat: 'NuPkg'
+
+- task: OctopusPush@4
+  inputs:
+    OctoConnectedServiceName: 'Octopus server'
+    Space: 'Default'
+    Package: '$(System.DefaultWorkingDirectory)/**/*.nupkg'
+    Replace: 'false'
+
+# this code takes all the files in $(Build.ArtifactStagingDirectory) and uploads them as an artifact of your build.
+- task: PublishBuildArtifacts@1
+  displayName: PublishBuildArtifacts
+  inputs:
+    PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+    ArtifactName: 'drop'
